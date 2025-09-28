@@ -7,7 +7,7 @@ import csv
 import io
 import time
 
-app = Flask(_name_)
+app = Flask(_name)  # fixed __name_
 CORS(app)
 
 # -------------------------
@@ -58,6 +58,7 @@ def ecg_reader():
         if monitoring:
             val = read_ecg_value()
             if val is not None:
+                scaled_val = val * 10
                 with buffer_lock:
                     ecg_buffer.append(val)
                     if len(ecg_buffer) > ECG_BUFFER_SIZE:
@@ -69,7 +70,6 @@ threading.Thread(target=ecg_reader, daemon=True).start()
 # -------------------------
 # Routes
 # -------------------------
-
 @app.route("/start_monitoring", methods=["POST"])
 def start_monitoring():
     global monitoring
@@ -108,7 +108,7 @@ def vitals():
     if current_patient_id is None:
         return jsonify({"error": "No patient selected"}), 400
 
-    # Simulated vitals (replace with real sensors if available)
+    # Simulated vitals
     heart_rate = max(1, int(np.random.normal(75, 5)))
     spo2 = max(80, min(100, int(np.random.normal(97, 1))))
     temperature = round(np.random.normal(36.8, 0.3), 1)
@@ -128,8 +128,8 @@ def vitals():
         "respiratory_rate": respiratory_rate,
         "ecg_summary": f"{min(ecg_snapshot) if ecg_snapshot else '--'} - {max(ecg_snapshot) if ecg_snapshot else '--'}"
     }
-    patient["vitals_history"].insert(0, vitals_record)  # newest first
-    patient["vitals_history"] = patient["vitals_history"][:5]  # keep only last 5
+    patient["vitals_history"].insert(0, vitals_record)
+    patient["vitals_history"] = patient["vitals_history"][:5]
 
     # Alert detection
     alerts = []
@@ -160,7 +160,6 @@ def export():
         return jsonify({"error": "No patient selected"}), 400
     patient = patients[current_patient_id]
 
-    # CSV in memory
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Time", "Heart Rate", "SpO2", "Temperature", "Respiratory Rate", "ECG"])
@@ -174,8 +173,12 @@ def export():
             v.get("ecg_summary", "--")
         ])
     output.seek(0)
-    return send_file(io.BytesIO(output.getvalue().encode()), mimetype="text/csv",
-                     attachment_filename=f"patient_{current_patient_id}_data.csv", as_attachment=True)
+    return send_file(
+        io.BytesIO(output.getvalue().encode()),
+        mimetype="text/csv",
+        download_name=f"patient_{current_patient_id}_data.csv",
+        as_attachment=True
+    )
 
 
 if _name_ == "_main_":
